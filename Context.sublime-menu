@@ -1,7 +1,7 @@
 [
 {
-	"id": "TestID",
-	"caption": "TestCaption",
-	"command": "example"
+	"id": "UnrealShaderIntelliJump",
+	"caption": "跳转",
+	"command": "intelli_jump"
 }
 ]

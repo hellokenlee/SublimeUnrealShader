@@ -1,0 +1,6 @@
+[
+{ 
+	"keys": ["alt+g"],
+	"command": "intelli_jump"
+}
+]
