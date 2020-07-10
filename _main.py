@@ -10,8 +10,20 @@ import subprocess
 import sublime
 import sublime_plugin
 
+LOG = True
+INFO = "Info"
+ERROR = "Error"
 
 engine_path_map = {}
+
+
+def log(channel, text):
+	# type: (str, str) -> None
+	if LOG:
+		print("[%s]: %s" % (channel, text))
+	else:
+		pass
+	pass
 
 
 class Utils(object):
@@ -30,10 +42,22 @@ class Utils(object):
 		return False
 
 	@staticmethod
-	def get_shader_file_path(virtual_path, engine_path):
-		# type: (str, str) -> str
-		shader_dir = Utils.get_engine_shader_path(engine_path)
-		return os.path.normpath(virtual_path.replace("/Engine", shader_dir))
+	def get_shader_file_path(current, include, engine):
+		# type: (str, str, str) -> str
+		# 同目录下的文件
+		if not include.startswith("/"):
+			shader_filepath = os.path.join(os.path.dirname(current), include)
+			shader_filepath = os.path.normpath(shader_filepath)
+			if os.path.exists(shader_filepath):
+				return shader_filepath
+		# 引擎着色器目录下的文件
+		if include.startswith("/Engine"):
+			shader_dir = Utils.get_engine_shader_path(engine)
+			shader_filepath = os.path.normpath(include.replace("/Engine", shader_dir))
+			if os.path.exists(shader_filepath):
+				return shader_filepath
+		#
+		return ""
 
 	@staticmethod
 	def get_engine_path(spath):
@@ -134,11 +158,19 @@ class IntelliJumpCommand(sublime_plugin.TextCommand):
 			#
 			current_filepath = self.view.file_name()
 			#
+			log(INFO, "Jump to include: %s -> %s" % (current_filepath, include[1][1:-1]))
+			#
 			if current_filepath in engine_path_map:
 				engine_path = engine_path_map[current_filepath]
 				if engine_path:
 					virtual_filepath = include[1][1:-1]
-					self.view.window().open_file(Utils.get_shader_file_path(virtual_filepath, engine_path))
+					abs_filepath = Utils.get_shader_file_path(current_filepath, virtual_filepath, engine_path)
+					if abs_filepath:
+						self.view.window().open_file(abs_filepath)
+					else:
+						log(ERROR, "Failed to search: %s" % include[1][1:-1])
+				else:
+					log(ERROR, "Not exist engine path for: %s" % current_filepath)
 		pass
 
 	def jump_to_definition(self, definition):
