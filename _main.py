@@ -14,7 +14,7 @@ LOG = True
 INFO = "Info"
 ERROR = "Error"
 
-engine_path_map = {}
+g_engine_path_map = {}
 
 
 def log(channel, text):
@@ -23,6 +23,16 @@ def log(channel, text):
 		print("[%s]: %s" % (channel, text))
 	else:
 		pass
+	pass
+
+
+def info(text):
+	log(INFO, text)
+	pass
+
+
+def error(text):
+	log(ERROR, text)
 	pass
 
 
@@ -103,6 +113,7 @@ class Utils(object):
 		return ""
 
 
+# noinspection PyMethodMayBeStatic
 class UnrealShaderEventListener(sublime_plugin.EventListener):
 
 	STATUS_KEY = "UnrealShaderRoot"
@@ -111,24 +122,32 @@ class UnrealShaderEventListener(sublime_plugin.EventListener):
 		super(UnrealShaderEventListener, self).__init__()
 		pass
 
+	def on_pre_close(self, view):
+		window = view.window()
+		# 最后的窗格
+		if len(window.views()) == 1:
+			info("Last view. Closing engine shader folder.")
+			view.window().set_project_data({})
+		pass
+
 	def on_activated(self, view):
 		#
-		global engine_path_map
+		global g_engine_path_map
 		#
 		current_filepath = view.file_name()
 		#
 		if Utils.support(current_filepath):
 			#
-			if current_filepath not in engine_path_map:
+			if current_filepath not in g_engine_path_map:
 				engine_path = Utils.get_engine_path(current_filepath)
 				if engine_path:
-					print("Found engine path: %s" % engine_path)
-					engine_path_map[current_filepath] = engine_path
+					info("Found engine path: %s" % engine_path)
+					g_engine_path_map[current_filepath] = engine_path
 				else:
-					print("Empty engine path!!!")
+					info("Empty engine path!!!")
 					return
 			else:
-				engine_path = engine_path_map[current_filepath]
+				engine_path = g_engine_path_map[current_filepath]
 			#
 			view.set_status(self.STATUS_KEY, "Engine: %s\\ " % engine_path)
 			#
@@ -144,49 +163,89 @@ class UnrealShaderEventListener(sublime_plugin.EventListener):
 						],
 				}
 				view.window().set_project_data(data)
-				print("Open engine shader folder automatically.")
+				info("Open engine shader folder automatically.")
 		pass
 
 
 # noinspection PyMethodMayBeStatic
 class IntelliJumpCommand(sublime_plugin.TextCommand):
 
+	INCLUDE_MACRO = "#include"
 	INCLUDE_SCOPE = "meta.preprocessor.include.us"
 
-	def run(self, _edit):
-		point = self.view.sel()[-1].b
-		scopes = self.view.scope_name(point)
-		scopes = scopes.split(" ")
-		for scope in scopes:
-			if scope == self.INCLUDE_SCOPE:
-				include = self.view.substr(self.view.line(point))
-				self.jump_to_include(include)
+	def __init__(self, *args, **kwargs):
+		super(IntelliJumpCommand, self).__init__(*args, **kwargs)
+		self.mouse_vector = (0, 0)
 		pass
 
-	def jump_to_include(self, include):
+	def run(self, _edit, event=None):
+		self.update_mouse_point(event)
+		self.goto_file(self.current_cursor_line_text())
+		pass
+
+	def want_event(self):
+		return True
+
+	def is_visible(self, event=None):
+		self.update_mouse_point(event)
+		if self.can_goto_file(self.current_cursor_line_text()) is not None:
+			return True
+		return False
+
+	def update_mouse_point(self, event):
+		if event is not None:
+			self.mouse_vector = (event['x'], event['y'])
+		pass
+
+	def current_edit_line_text(self):
+		# type: () -> str
+		return self.view.substr(self.view.line(self.view.sel()[-1].b))
+
+	def current_cursor_line_text(self):
+		# type: () -> str
+		point = self.view.window_to_text(self.mouse_vector)
+		return self.view.substr(self.view.line(point))
+
+	def can_goto_file(self, text_line):
+		# type: (str) -> str or None
 		#
-		global engine_path_map
+		global g_engine_path_map
 		#
-		include = include.split()
+		words = text_line.split()
 		#
-		if len(include) == 2 and include[0] == "#include":
+		if len(words) == 2 and words[0] == self.INCLUDE_MACRO:
+			return words[1][1:-1]
+		else:
+			return None
+		pass
+
+	def can_goto_definition(self, _text_line):
+		# type: (str) -> str or None
+		return None
+
+	def goto_file(self, text_line):
+		#
+		global g_engine_path_map
+		#
+		filename = self.can_goto_file(text_line)
+		if filename is not None:
 			#
 			current_filepath = self.view.file_name()
 			#
-			log(INFO, "Jump to include: %s -> %s" % (current_filepath, include[1][1:-1]))
+			info("Jump to include: %s -> %s" % (current_filepath, filename))
 			#
-			if current_filepath in engine_path_map:
-				engine_path = engine_path_map[current_filepath]
+			if current_filepath in g_engine_path_map:
+				engine_path = g_engine_path_map[current_filepath]
 				if engine_path:
-					virtual_filepath = include[1][1:-1]
+					virtual_filepath = filename
 					abs_filepath = Utils.get_shader_file_path(current_filepath, virtual_filepath, engine_path)
 					if abs_filepath:
 						self.view.window().open_file(abs_filepath)
 					else:
-						log(ERROR, "Failed to search: %s" % include[1][1:-1])
+						error("Failed to search: %s" % filename)
 				else:
-					log(ERROR, "Not exist engine path for: %s" % current_filepath)
+					error("Not exist engine path for: %s" % current_filepath)
 		pass
 
-	def jump_to_definition(self, definition):
+	def goto_definition(self, text_line):
 		pass
