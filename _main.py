@@ -15,6 +15,7 @@ INFO = "Info"
 ERROR = "Error"
 
 g_engine_path_map = {}
+g_engine_shader_path_set = set()
 
 
 def log(channel, text):
@@ -124,10 +125,23 @@ class UnrealShaderEventListener(sublime_plugin.EventListener):
 
 	def on_pre_close(self, view):
 		window = view.window()
+		#
+		global g_engine_shader_path_set
 		# 最后的窗格
 		if len(window.views()) == 1:
-			info("Last view. Closing engine shader folder.")
-			view.window().set_project_data({})
+			info("Last view. Cleaning shader folder.")
+			data = view.window().project_data()
+			if "folders" in data:
+				clear_folders = []
+				for folder_dict in data["folders"]:
+					print(folder_dict["path"], g_engine_shader_path_set)
+					if "path" in folder_dict and folder_dict["path"] in g_engine_shader_path_set:
+						info("Remove shader folder: %s" % folder_dict["path"])
+					else:
+						clear_folders.append(folder_dict)
+				print(clear_folders)
+				data["folders"] = clear_folders
+				view.window().set_project_data(data)
 		pass
 
 	def on_activated(self, view):
@@ -143,6 +157,7 @@ class UnrealShaderEventListener(sublime_plugin.EventListener):
 				if engine_path:
 					info("Found engine path: %s" % engine_path)
 					g_engine_path_map[current_filepath] = engine_path
+					g_engine_shader_path_set.add(Utils.get_engine_shader_path(engine_path))
 				else:
 					info("Empty engine path!!!")
 					return
