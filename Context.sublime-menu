@@ -1,7 +1,6 @@
 [
 {
-	"id": "UnrealShaderIntelliJump",
-	"caption": "跳转",
+	"caption": "转到文件",
 	"command": "intelli_jump"
 }
 ]
