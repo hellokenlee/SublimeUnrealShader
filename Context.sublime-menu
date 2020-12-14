@@ -1,6 +1,6 @@
 [
 {
-	"caption": "转到文件",
+	"caption": "Goto Source",
 	"command": "intelli_jump"
 }
 ]
