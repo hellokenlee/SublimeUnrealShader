@@ -1,6 +1,13 @@
 [
 { 
 	"keys": ["alt+g"],
-	"command": "intelli_jump"
+	"command": "intelli_jump_by_key",
+	"context":
+	[{
+		"key": "selector",
+		"operator": "equal",
+		"operand": "source.us",
+		"match_all": true
+	}]
 }
 ]

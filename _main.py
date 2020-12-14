@@ -264,3 +264,14 @@ class IntelliJumpCommand(sublime_plugin.TextCommand):
 
 	def goto_definition(self, text_line):
 		pass
+
+
+# noinspection PyMethodMayBeStatic
+class IntelliJumpByKeyCommand(IntelliJumpCommand):
+
+	def run(self, _edit, event=None):
+		if self.can_goto_file(self.current_edit_line_text()):
+			self.goto_file(self.current_edit_line_text())
+		else:
+			self.view.window().run_command("goto_definition")
+		pass

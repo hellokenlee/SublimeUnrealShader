@@ -1,5 +1,7 @@
 # Unreal Shader
 
+Unreal Engine 4 shader editing, syntax hightlighting and more
+
 - Syntax highlighting for `*.ush` and `*.usf` files
 - Goto definition support for function
 - Goto include file support for include macro
