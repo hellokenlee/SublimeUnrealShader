@@ -440,7 +440,7 @@ contexts:
     # Allow a macro call
     - match: '({{identifier}})\s*(\()(?=[^\)]+\))'
       captures:
-        1: entity.name.function.us
+        1: entity.name.function-call.us
         2: meta.group.us punctuation.section.group.begin.us
       push:
         - meta_scope: meta.function-call.us
@@ -1078,7 +1078,7 @@ contexts:
     - meta_content_scope: meta.function-call.us
     - include: c99
     - match: '{{identifier}}'
-      scope: entity.name.function.us
+      scope: entity.name.function-call.us
     - match: '\('
       scope: meta.group.us punctuation.section.group.begin.us
       set: preprocessor-if-branch-function-call-arguments
