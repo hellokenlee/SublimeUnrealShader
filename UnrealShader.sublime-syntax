@@ -19,7 +19,7 @@ variables:
   integer_suffix: '[lL]{1,2}[uU]?|[uU][lL]{0,2}'
   identifier: \b[[:alpha:]_][[:alnum:]_]*\b # upper and lowercase
   macro_identifier: \b[[:upper:]_][[:upper:][:digit:]_]{2,}\b # only uppercase, at least 3 chars
-  control_keywords: 'break|case|continue|default|do|else|for|goto|if|return|switch|while|unroll|UNROLL|flatten|FLATTEN'
+  control_keywords: 'break|case|continue|default|do|else|for|goto|if|return|switch|while|unroll|UNROLL|flatten|FLATTEN|branch|BRANCH'
   intrinsic_keywords: 'abort|abs|acos|all|AllMemoryBarrier|AllMemoryBarrierWithGroupSync|any|asdouble|asfloat|asin|asint|asuint|atan|atan2|ceil|clamp|clip|cos|cosh|countbits|cross|D3DCOLORtoUBYTE4|ddx|ddx_coarse|ddx_fine|ddy|ddy_coarse|ddy_fine|degrees|determinant|DeviceMemoryBarrier|DeviceMemoryBarrierWithGroupSync|distance|dot|dst|errorf|EvaluateAttributeAtCentroid|EvaluateAttributeAtSample|EvaluateAttributeSnapped|exp|exp2|f16tof32|f32tof16|faceforward|firstbithigh|firstbitlow|floor|fma|fmod|frac|frexp|fwidth|GetRenderTargetSampleCount|GetRenderTargetSamplePosition|GroupMemoryBarrier|GroupMemoryBarrierWithGroupSync|InterlockedAdd|InterlockedAnd|InterlockedCompareExchange|InterlockedCompareStore|InterlockedExchange|InterlockedMax|InterlockedMin|InterlockedOr|InterlockedXor|isfinite|isinf|isnan|ldexp|length|lerp|lit|log|log10|log2|mad|max|min|modf|msad4|mul|noise|normalize|pow|printf|Process2DQuadTessFactorsAvg|Process2DQuadTessFactorsMax|Process2DQuadTessFactorsMin|ProcessIsolineTessFactors|ProcessQuadTessFactorsAvg|ProcessQuadTessFactorsMax|ProcessQuadTessFactorsMin|ProcessTriTessFactorsAvg|ProcessTriTessFactorsMax|ProcessTriTessFactorsMin|radians|rcp|reflect|refract|reversebits|round|rsqrt|saturate|sign|sin|sincos|sinh|smoothstep|sqrt|step|tan|tanh|tex1D|tex1Dbias|tex1Dgrad|tex1Dlod|tex1Dproj|tex2D|tex2Dbias|tex2Dgrad|tex2Dlod|tex2Dproj|tex3D|tex3Dbias|tex3Dgrad|tex3Dlod|tex3Dproj|texCUBE|texCUBEbias|texCUBEgrad|texCUBElod|texCUBEproj|transpose|trunc|inout|in|out'
   basic_types: 'bool|double|dword|float|half|int|min10float|min16float|min12int|min16int|min16uint|struct|uint|void'
   vector_types: 'double1|double2|double3|double4|float1|float2|float3|float4|half1|half2|half3|half4|int1|int2|int3|int4|uint1|uint2|uint3|uint4'
@@ -768,7 +768,7 @@ contexts:
         - meta_content_scope: meta.function-call.us
         - include: c99
         - match: '{{identifier}}'
-          scope: entity.name.function.us
+          scope: entity.name.function-call.us
         - match: '\('
           scope: meta.group.us punctuation.section.group.begin.us
           set:
