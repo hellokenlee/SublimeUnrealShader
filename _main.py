@@ -5,6 +5,7 @@ __email__ = "hellokenlee@163.com"
 
 import os
 import json
+import copy
 import subprocess
 
 import sublime
@@ -14,14 +15,13 @@ LOG = True
 INFO = "Info"
 ERROR = "Error"
 
-g_engine_path_map = {}
-g_engine_shader_path_set = set()
+g_view_id_to_folder_paths = {}
 
 
 def log(channel, text):
 	# type: (str, str) -> None
 	if LOG:
-		print("[%s]: %s" % (channel, text))
+		print("UnrealShader: [%s]: %s" % (channel, text))
 	else:
 		pass
 	pass
@@ -39,9 +39,11 @@ def error(text):
 
 class Utils(object):
 
-	UPROJ = ".uproject"
+	UPLUGIN = ".uplugin"
+	UPROJECT = ".uproject"
 	EXTENSIONS = [".usf", ".ush"]
-	ENGINE_SHADERS_PATH = os.path.join("Engine", "Shaders")
+	ENGINE_FOLDER_NAME = "Engine"
+	SHADERS_FOLDER_NAME = "Shaders"
 
 	@classmethod
 	def support(cls, filepath):
@@ -53,52 +55,138 @@ class Utils(object):
 		return False
 
 	@classmethod
-	def get_shader_file_path(cls, current, include, engine):
+	def get_shader_file_path(cls, current, include, root):
 		# type: (str, str, str) -> str
-		# 同目录下的文件
+		# Same directory files
 		if not include.startswith("/"):
 			shader_filepath = os.path.join(os.path.dirname(current), include)
 			shader_filepath = os.path.normpath(shader_filepath)
 			if os.path.exists(shader_filepath):
 				return shader_filepath
-		# 引擎着色器目录下的文件
+		# Files below engines
 		if include.startswith("/Engine"):
-			shader_dir = cls.get_engine_shader_path(engine)
-			shader_filepath = os.path.normpath(include.replace("/Engine", shader_dir))
+			shader_filepath = os.path.normpath(include.replace("/Engine", root))
 			if os.path.exists(shader_filepath):
 				return shader_filepath
 		#
 		return ""
 
 	@classmethod
-	def get_engine_path(cls, spath):
+	def get_engine_path(cls, some_path):
 		# type: (str) -> basestring
-		# 如果传入的是文件
-		if os.path.isfile(spath):
-			return cls.get_engine_path(os.path.dirname(spath))
-		# 找到根目录也没找到
-		if os.path.dirname(spath) == spath:
+		# Failed to find in root
+		if os.path.dirname(some_path) == some_path:
 			return ""
-		# 如果已经在引擎目录
-		if spath.endswith(cls.ENGINE_SHADERS_PATH):
-			return os.path.dirname(spath)
-		# 寻找当前目录的项目文件
-		filelist = os.listdir(spath)
+		# Search up if it is a file
+		if os.path.isfile(some_path):
+			return cls.get_engine_path(os.path.dirname(some_path))
+		# Return if it is an engine folder
+		if os.path.basename(some_path) == cls.ENGINE_FOLDER_NAME:
+			return some_path
+		# Return related engine folder if it is a project folder
+		filelist = os.listdir(some_path)
 		for filename in filelist:
-			if filename.endswith(cls.UPROJ):
+			if filename.endswith(cls.UPROJECT):
 				#
-				filepath = os.path.join(spath, filename)
+				filepath = os.path.join(some_path, filename)
 				#
 				with open(filepath, "r") as fp:
 					uproject = json.load(fp)
 					if "EngineAssociation" in uproject:
 						return cls.guid_to_path(str(uproject["EngineAssociation"]))
-		#
-		return cls.get_engine_path(os.path.dirname(spath))
+		# Search up if it is everything else
+		return cls.get_engine_path(os.path.dirname(some_path))
 
-	@staticmethod
-	def get_engine_shader_path(epath):
-		return os.path.normpath(os.path.join(epath, "Shaders"))
+	@classmethod
+	def get_engine_shaders_path(cls, engine_path):
+		return os.path.normpath(os.path.join(engine_path, cls.SHADERS_FOLDER_NAME))
+
+	@classmethod
+	def get_plugin_shaders_path(cls, some_path):
+		# type: (str) -> basestring
+		# Failed to find in root
+		if os.path.dirname(some_path) == some_path:
+			return ""
+		# Search up if it is a file
+		if os.path.isfile(some_path):
+			return cls.get_plugin_shaders_path(os.path.dirname(some_path))
+		# Return if it is a plugin folder
+		filelist = os.listdir(some_path)
+		for filename in filelist:
+			if filename.endswith(cls.UPLUGIN):
+				shaders_path = os.path.join(some_path, cls.SHADERS_FOLDER_NAME)
+				if os.path.exists(shaders_path):
+					return shaders_path
+				break
+		return cls.get_plugin_shaders_path(os.path.dirname(some_path))
+
+	@classmethod
+	def add_view_folder_path(cls, view, path):
+		global g_view_id_to_folder_paths
+		path = os.path.normpath(path)
+		return g_view_id_to_folder_paths.setdefault(view.id(), set()).add(path)
+
+	@classmethod
+	def get_view_all_folder_paths(cls, view):
+		global g_view_id_to_folder_paths
+		return copy.deepcopy(g_view_id_to_folder_paths.get(view.id(), set()))
+
+	@classmethod
+	def open_project_folder(cls, view, folder_path, rename):
+		#
+		cls.add_view_folder_path(view, folder_path)
+		#
+		window = view.window()
+		if window is None:
+			return
+		#
+		if folder_path not in window.folders():
+			# Get proj
+			data = window.project_data()
+			data = {} if data is None else data
+			# Open folder
+			folders_data = data.setdefault("folders", [])
+			folders_data.append(
+				{
+					"follow_symlinks": True,
+					"path": folder_path,
+					"name": rename,
+				}
+			)
+			#
+			window.set_project_data(data)
+		pass
+
+	@classmethod
+	def close_project_folder(cls, view):
+		#
+		window = view.window()
+		if window is None:
+			return
+		#
+		for folder_path in Utils.get_view_all_folder_paths(view):
+			if folder_path in window.folders():
+				# Get proj
+				data = window.project_data()
+				if data is None:
+					return
+				# Check if should alive
+				for other_view in window.views():
+					if view.id() == other_view.id():
+						continue
+					related_folder_paths = Utils.get_view_all_folder_paths(other_view)
+					if folder_path in related_folder_paths:
+						return
+				# Close if none view related to this folder
+				remain_folders = []
+				for folder_dict in data.get("folders", {}):
+					if folder_path == folder_dict["path"]:
+						info("Remove shader folder: %s" % folder_dict["path"])
+					else:
+						remain_folders.append(folder_dict)
+				data["folders"] = remain_folders
+				window.set_project_data(data)
+		pass
 
 	@staticmethod
 	def guid_to_path(guid):
@@ -124,61 +212,27 @@ class UnrealShaderEventListener(sublime_plugin.EventListener):
 		pass
 
 	def on_pre_close(self, view):
-		window = view.window()
-		#
-		global g_engine_shader_path_set
-		# 最后的窗格
-		if len(window.views()) == 1:
-			info("Last view. Cleaning shader folder.")
-			data = view.window().project_data()
-			if "folders" in data:
-				clear_folders = []
-				for folder_dict in data["folders"]:
-					print(folder_dict["path"], g_engine_shader_path_set)
-					if "path" in folder_dict and folder_dict["path"] in g_engine_shader_path_set:
-						info("Remove shader folder: %s" % folder_dict["path"])
-					else:
-						clear_folders.append(folder_dict)
-				print(clear_folders)
-				data["folders"] = clear_folders
-				view.window().set_project_data(data)
+		Utils.close_project_folder(view)
 		pass
 
 	def on_activated(self, view):
-		#
-		global g_engine_path_map
 		#
 		current_filepath = view.file_name()
 		#
 		if Utils.support(current_filepath):
 			#
-			if current_filepath not in g_engine_path_map:
-				engine_path = Utils.get_engine_path(current_filepath)
-				if engine_path:
-					info("Found engine path: %s" % engine_path)
-					g_engine_path_map[current_filepath] = engine_path
-					g_engine_shader_path_set.add(Utils.get_engine_shader_path(engine_path))
-				else:
-					info("Empty engine path!!!")
-					return
-			else:
-				engine_path = g_engine_path_map[current_filepath]
+			engine_path = Utils.get_engine_path(current_filepath)
+			engine_shaders_path = Utils.get_engine_shaders_path(engine_path)
+			plugin_shaders_path = Utils.get_plugin_shaders_path(current_filepath)
 			#
 			view.set_status(self.STATUS_KEY, "Engine: %s\\ " % engine_path)
 			#
-			shaders_path = Utils.get_engine_shader_path(engine_path)
-			if shaders_path not in view.window().folders():
-				data = {
-					"folders":
-						[
-							{
-								"follow_symlinks": True,
-								"path": shaders_path
-							}
-						],
-				}
-				view.window().set_project_data(data)
-				info("Open engine shader folder automatically.")
+			if engine_shaders_path:
+				Utils.open_project_folder(view, engine_shaders_path, "Shaders (Engine)")
+				info("Open engine shader folder automatically: %s" % engine_shaders_path)
+			if plugin_shaders_path:
+				Utils.open_project_folder(view, plugin_shaders_path, "Shaders (Plugin)")
+				info("Open plugin shader folder automatically: %s" % plugin_shaders_path)
 		pass
 
 
@@ -224,8 +278,6 @@ class IntelliJumpCommand(sublime_plugin.TextCommand):
 	def can_goto_file(self, text_line):
 		# type: (str) -> str or None
 		#
-		global g_engine_path_map
-		#
 		words = text_line.split()
 		#
 		if len(words) == 2 and words[0] == self.INCLUDE_MACRO:
@@ -240,26 +292,22 @@ class IntelliJumpCommand(sublime_plugin.TextCommand):
 
 	def goto_file(self, text_line):
 		#
-		global g_engine_path_map
-		#
-		filename = self.can_goto_file(text_line)
-		if filename is not None:
+		include_filename = self.can_goto_file(text_line)
+		if include_filename is not None:
 			#
 			current_filepath = self.view.file_name()
 			#
-			info("Jump to include: %s -> %s" % (current_filepath, filename))
+			info("Try jump to include: %s -> %s" % (current_filepath, include_filename))
 			#
-			if current_filepath in g_engine_path_map:
-				engine_path = g_engine_path_map[current_filepath]
-				if engine_path:
-					virtual_filepath = filename
-					abs_filepath = Utils.get_shader_file_path(current_filepath, virtual_filepath, engine_path)
-					if abs_filepath:
-						self.view.window().open_file(abs_filepath)
-					else:
-						error("Failed to search: %s" % filename)
-				else:
-					error("Not exist engine path for: %s" % current_filepath)
+			shaders_folder_paths = Utils.get_view_all_folder_paths(self.view)
+			#
+			for folder_path in shaders_folder_paths:
+				abs_filepath = Utils.get_shader_file_path(current_filepath, include_filename, folder_path)
+				if abs_filepath:
+					self.view.window().open_file(abs_filepath)
+					return
+			#
+			info("Failed to search: %s" % include_filename)
 		pass
 
 	def goto_definition(self, text_line):
