@@ -1,7 +1,7 @@
 %YAML 1.2
 ---
 # http://www.sublimetext.usom/docs/3/syntax.html
-name: Unreal Shader
+name: UnrealShader
 file_extensions:
   - usf
   - ush

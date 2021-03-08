@@ -176,6 +176,7 @@ class Utils(object):
 						continue
 					related_folder_paths = Utils.get_view_all_folder_paths(other_view)
 					if folder_path in related_folder_paths:
+						print(related_folder_paths, folder_path)
 						return
 				# Close if none view related to this folder
 				remain_folders = []
@@ -227,12 +228,13 @@ class UnrealShaderEventListener(sublime_plugin.EventListener):
 			#
 			view.set_status(self.STATUS_KEY, "Engine: %s\\ " % engine_path)
 			#
-			if engine_shaders_path:
-				Utils.open_project_folder(view, engine_shaders_path, "Shaders (Engine)")
-				info("Open engine shader folder automatically: %s" % engine_shaders_path)
-			if plugin_shaders_path:
-				Utils.open_project_folder(view, plugin_shaders_path, "Shaders (Plugin)")
-				info("Open plugin shader folder automatically: %s" % plugin_shaders_path)
+			if view.settings().get('AutoOpenShaderFolder'):
+				if engine_shaders_path:
+					Utils.open_project_folder(view, engine_shaders_path, "Shaders (Engine)")
+					info("Open engine shader folder automatically: %s" % engine_shaders_path)
+				if plugin_shaders_path:
+					Utils.open_project_folder(view, plugin_shaders_path, "Shaders (Plugin)")
+					info("Open plugin shader folder automatically: %s" % plugin_shaders_path)
 		pass
 
 
