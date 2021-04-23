@@ -8,14 +8,22 @@ import json
 import copy
 import subprocess
 
-import sublime
-import sublime_plugin
+try:
+	from typing import *
+except ImportError:
+	pass
+
+try:
+	import sublime
+	import sublime_plugin
+except ImportError:
+	pass
 
 LOG = True
 INFO = "Info"
 ERROR = "Error"
 
-g_view_id_to_folder_paths = {}
+g_view_id_to_folder_paths = {}			# type: Dict[int, Dict[int, Set[str]]]
 
 
 def log(channel, text):
@@ -47,7 +55,7 @@ class Utils(object):
 
 	@classmethod
 	def support(cls, filepath):
-		# type: (basestring) -> bool
+		# type: (str) -> bool
 		if filepath:
 			for extens in cls.EXTENSIONS:
 				if filepath.endswith(extens):
@@ -73,7 +81,7 @@ class Utils(object):
 
 	@classmethod
 	def get_engine_path(cls, some_path):
-		# type: (str) -> basestring
+		# type: (str) -> str
 		# Failed to find in root
 		if os.path.dirname(some_path) == some_path:
 			return ""
@@ -103,7 +111,7 @@ class Utils(object):
 
 	@classmethod
 	def get_plugin_shaders_path(cls, some_path):
-		# type: (str) -> basestring
+		# type: (str) -> str
 		# Failed to find in root
 		if os.path.dirname(some_path) == some_path:
 			return ""
@@ -124,12 +132,40 @@ class Utils(object):
 	def add_view_folder_path(cls, view, path):
 		global g_view_id_to_folder_paths
 		path = os.path.normpath(path)
-		return g_view_id_to_folder_paths.setdefault(view.id(), set()).add(path)
+		g_view_id_to_folder_paths.setdefault(view.window().id(), {})
+		return g_view_id_to_folder_paths[view.window().id()].setdefault(view.id(), set()).add(path)
 
 	@classmethod
 	def get_view_all_folder_paths(cls, view):
 		global g_view_id_to_folder_paths
-		return copy.deepcopy(g_view_id_to_folder_paths.get(view.id(), set()))
+		return copy.deepcopy(g_view_id_to_folder_paths.get(view.window().id(), {}) .get(view.id(), set()))
+
+	@classmethod
+	def clear_view_floder_paths(cls, view):
+		#
+		global g_view_id_to_folder_paths
+		#
+		for window in sublime.windows():
+			dead_view_ids = []
+			alive_view_ids = set()
+			for alive_view in window.views():
+				if alive_view.id() != view.id():
+					alive_view_ids.add(alive_view.id())
+			for view_id in g_view_id_to_folder_paths.get(window.id(), {}):
+				if view_id not in alive_view_ids:
+					dead_view_ids.append(view_id)
+			for view_id in dead_view_ids:
+				g_view_id_to_folder_paths[window.id()].pop(view_id)
+		pass
+
+	@classmethod
+	def contains_folder_path(cls, path):
+		global g_view_id_to_folder_paths
+		for window_id in g_view_id_to_folder_paths.keys():
+			for view_id, folder_paths in g_view_id_to_folder_paths[window_id].items():
+				if path in folder_paths:
+					return True
+		return False
 
 	@classmethod
 	def open_project_folder(cls, view, folder_path, rename):
@@ -158,40 +194,31 @@ class Utils(object):
 		pass
 
 	@classmethod
-	def close_project_folder(cls, view):
+	def clear_project_folders(cls, current_view):
 		#
-		window = view.window()
-		if window is None:
-			return
+		Utils.clear_view_floder_paths(current_view)
 		#
-		for folder_path in Utils.get_view_all_folder_paths(view):
-			if folder_path in window.folders():
-				# Get proj
-				data = window.project_data()
-				if data is None:
-					return
-				# Check if should alive
-				for other_view in window.views():
-					if view.id() == other_view.id():
-						continue
-					related_folder_paths = Utils.get_view_all_folder_paths(other_view)
-					if folder_path in related_folder_paths:
-						print(related_folder_paths, folder_path)
+		for window in sublime.windows():
+			for folder_path in window.folders():
+				if not Utils.contains_folder_path(folder_path):
+					# Get proj
+					data = window.project_data()
+					if data is None:
 						return
-				# Close if none view related to this folder
-				remain_folders = []
-				for folder_dict in data.get("folders", {}):
-					if folder_path == folder_dict["path"]:
-						info("Remove shader folder: %s" % folder_dict["path"])
-					else:
-						remain_folders.append(folder_dict)
-				data["folders"] = remain_folders
-				window.set_project_data(data)
+					# Close if none view related to this folder
+					remain_folders = []
+					for folder_dict in data.get("folders", {}):
+						if folder_path == folder_dict["path"]:
+							info("Remove shader folder: %s" % folder_dict["path"])
+						else:
+							remain_folders.append(folder_dict)
+					data["folders"] = remain_folders
+					window.set_project_data(data)
 		pass
 
 	@staticmethod
 	def guid_to_path(guid):
-		# type: (basestring) -> basestring
+		# type: (str) -> str
 		command = ['REG', 'QUERY', 'HKEY_CURRENT_USER\\Software\\Epic Games\\Unreal Engine\\Builds', '/v', guid]
 		try:
 			result = subprocess.check_output(command)
@@ -213,7 +240,7 @@ class UnrealShaderEventListener(sublime_plugin.EventListener):
 		pass
 
 	def on_pre_close(self, view):
-		Utils.close_project_folder(view)
+		Utils.clear_project_folders(view)
 		pass
 
 	def on_activated(self, view):
